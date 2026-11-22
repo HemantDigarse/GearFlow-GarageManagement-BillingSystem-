@@ -1,0 +1,37 @@
+name: Deploy GearFlow
+
+on:
+  workflow_run:
+    workflows: [GearFlow CI]
+    branches: [main]
+    types: [completed]
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Load deployment SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SERVER_SSH_KEY }}
+      - name: Install pinned server host key
+        env:
+          SERVER_KNOWN_HOSTS: ${{ secrets.SERVER_KNOWN_HOSTS }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SERVER_KNOWN_HOSTS" >> ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+      - name: Deploy immutable image tag
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USERNAME: ${{ secrets.SERVER_USERNAME }}
+          IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          test -n "$SERVER_HOST" && test -n "$SERVER_USERNAME"
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes "$SERVER_USERNAME@$SERVER_HOST" \
+            "IMAGE_TAG='$IMAGE_TAG' /usr/local/bin/deploy-gearflow.sh"

@@ -1,0 +1,8 @@
+vault_mysql_database: gearflow
+vault_mysql_user: gearflow
+vault_mysql_password: REPLACE_WITH_RANDOM_SECRET
+vault_mysql_root_password: REPLACE_WITH_DIFFERENT_RANDOM_SECRET
+vault_jwt_secret: REPLACE_WITH_BASE64_RANDOM_KEY_AT_LEAST_32_BYTES
+vault_dockerhub_username: REPLACE_WITH_DOCKERHUB_USERNAME
+vault_dockerhub_token: REPLACE_WITH_DOCKERHUB_TOKEN
+vault_nagios_admin_email: admin@example.com

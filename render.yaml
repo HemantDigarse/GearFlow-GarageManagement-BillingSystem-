@@ -1,0 +1,58 @@
+services:
+  - type: pserv
+    name: gearflow-mysql
+    runtime: image
+    image:
+      url: docker.io/library/mysql:8.0
+    plan: standard
+    disk:
+      name: gearflow-mysql-data
+      mountPath: /var/lib/mysql
+      sizeGB: 10
+    envVars:
+      - key: MYSQL_DATABASE
+        value: gearflow
+      - key: MYSQL_USER
+        value: gearflow
+      - key: MYSQL_PASSWORD
+        generateValue: true
+      - key: MYSQL_ROOT_PASSWORD
+        generateValue: true
+
+  - type: web
+    name: gearflow-backend
+    runtime: docker
+    dockerfilePath: ./gearflow-backend/Dockerfile
+    dockerContext: ./gearflow-backend
+    plan: starter
+    healthCheckPath: /actuator/health
+    envVars:
+      - key: PORT
+        value: "10000"
+      - key: SPRING_DATASOURCE_URL
+        value: jdbc:mysql://gearflow-mysql:3306/gearflow?useSSL=false&allowPublicKeyRetrieval=true
+      - key: SPRING_DATASOURCE_USERNAME
+        value: gearflow
+      - key: SPRING_DATASOURCE_PASSWORD
+        fromService:
+          name: gearflow-mysql
+          type: pserv
+          envVarKey: MYSQL_PASSWORD
+      - key: JWT_SECRET
+        generateValue: true
+      - key: SPRING_JPA_SHOW_SQL
+        value: "false"
+
+  - type: web
+    name: gearflow-frontend
+    runtime: docker
+    dockerfilePath: ./gearflow-frontend/Dockerfile.render
+    dockerContext: ./gearflow-frontend
+    plan: starter
+    healthCheckPath: /
+    envVars:
+      - key: BACKEND_HOST
+        fromService:
+          name: gearflow-backend
+          type: web
+          property: host

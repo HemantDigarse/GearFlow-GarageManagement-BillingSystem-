@@ -1,0 +1,17 @@
+.env
+.env.*
+!.env.example
+ansible/inventory/hosts.ini
+ansible/group_vars/gearflow/vault.yml
+*.tfstate
+*.tfstate.*
+.terraform/
+terraform.tfvars
+terraform/**/terraform.tfvars
+*.pem
+*.key
+*.log
+gearflow-backend/target/
+gearflow-frontend/node_modules/
+gearflow-frontend/dist/
+ansible/retry_files/

@@ -1,0 +1,91 @@
+---
+- name: Deploy GearFlow containers
+  hosts: gearflow
+  become: true
+  vars_files:
+    - ../group_vars/gearflow/vault.yml
+  vars:
+    app_dir: /opt/gearflow
+    image_tag: "{{ lookup('env', 'IMAGE_TAG') | default('latest', true) }}"
+  tasks:
+    - name: Create app directory
+      ansible.builtin.file:
+        path: "{{ app_dir }}/docker/nginx"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+    - name: Install Compose manifest
+      ansible.builtin.copy:
+        src: ../../docker-compose.prod.yml
+        dest: "{{ app_dir }}/docker-compose.yml"
+        owner: root
+        group: root
+        mode: "0644"
+    - name: Install edge proxy configuration
+      ansible.builtin.copy:
+        src: ../../docker/nginx/default.conf
+        dest: "{{ app_dir }}/docker/nginx/default.conf"
+        owner: root
+        group: root
+        mode: "0644"
+    - name: Install production environment file
+      ansible.builtin.template:
+        src: ../templates/gearflow.env.j2
+        dest: "{{ app_dir }}/.env"
+        owner: root
+        group: root
+        mode: "0600"
+    - name: Install deployment and rollback script
+      ansible.builtin.copy:
+        src: ../files/deploy-gearflow.sh
+        dest: /usr/local/bin/deploy-gearflow.sh
+        owner: root
+        group: root
+        mode: "0750"
+    - name: Sign in to Docker Hub for private image pulls
+      community.docker.docker_login:
+        registry_url: https://index.docker.io/v1/
+        username: "{{ vault_dockerhub_username }}"
+        password: "{{ vault_dockerhub_token }}"
+        reauthorize: true
+      no_log: true
+    - name: Ensure app volume and network exist
+      community.docker.docker_volume:
+        name: gearflow_mysql_data
+        state: present
+    - name: Ensure app network exists
+      community.docker.docker_network:
+        name: gearflow
+        state: present
+    - name: Read currently deployed release tag
+      ansible.builtin.slurp:
+        src: "{{ app_dir }}/.current-image-tag"
+      register: current_release
+      failed_when: false
+      changed_when: false
+    - name: Store currently deployed release tag
+      ansible.builtin.set_fact:
+        current_image_tag: "{{ (current_release.content | default('') | b64decode | trim) }}"
+    - name: Pull requested application version
+      ansible.builtin.command:
+        cmd: docker compose --env-file .env pull
+        chdir: "{{ app_dir }}"
+      environment:
+        IMAGE_TAG: "{{ image_tag }}"
+      when: current_image_tag != image_tag
+    - name: Start or update the application
+      ansible.builtin.command:
+        cmd: docker compose --env-file .env up -d --wait --remove-orphans
+        chdir: "{{ app_dir }}"
+      environment:
+        IMAGE_TAG: "{{ image_tag }}"
+      when: current_image_tag != image_tag
+    - name: Install current release tag for rollback script
+      ansible.builtin.copy:
+        content: "{{ image_tag }}\n"
+        dest: "{{ app_dir }}/.current-image-tag"
+        owner: root
+        group: root
+        mode: "0600"
+      when: current_image_tag != image_tag

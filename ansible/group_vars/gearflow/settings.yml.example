@@ -1,0 +1,7 @@
+gearflow_server_name: _
+gearflow_tls_enabled: false
+# When TLS is enabled, set a real domain and certificate paths on the VM.
+# gearflow_tls_enabled: true
+# gearflow_server_name: app.example.com
+# gearflow_tls_certificate: /etc/letsencrypt/live/app.example.com/fullchain.pem
+# gearflow_tls_certificate_key: /etc/letsencrypt/live/app.example.com/privkey.pem

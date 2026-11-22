@@ -1,0 +1,80 @@
+---
+- name: Configure GearFlow reverse proxy and monitoring
+  hosts: gearflow
+  become: true
+  vars:
+    nagios_admin_email: "{{ vault_nagios_admin_email | default('root@localhost') }}"
+  tasks:
+    - name: Ensure web and monitoring packages are installed
+      ansible.builtin.apt:
+        name: [nginx, nagios4-core, monitoring-plugins-basic]
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+    - name: Ensure external Compose network exists
+      community.docker.docker_network:
+        name: gearflow
+        state: present
+    - name: Ensure database volume exists
+      community.docker.docker_volume:
+        name: gearflow_mysql_data
+        state: present
+    - name: Install host reverse proxy
+      ansible.builtin.template:
+        src: ../templates/gearflow-nginx.conf.j2
+        dest: /etc/nginx/sites-available/gearflow
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Validate and reload nginx
+    - name: Enable GearFlow site
+      ansible.builtin.file:
+        src: /etc/nginx/sites-available/gearflow
+        dest: /etc/nginx/sites-enabled/gearflow
+        state: link
+      notify: Validate and reload nginx
+    - name: Remove default nginx site
+      ansible.builtin.file:
+        path: /etc/nginx/sites-enabled/default
+        state: absent
+      notify: Validate and reload nginx
+    - name: Install memory check plugin
+      ansible.builtin.copy:
+        src: ../files/check_mem
+        dest: /usr/local/lib/nagios/plugins/check_mem
+        owner: root
+        group: root
+        mode: "0755"
+    - name: Install GearFlow Nagios checks
+      ansible.builtin.template:
+        src: ../templates/gearflow-nagios.cfg.j2
+        dest: /etc/nagios4/conf.d/gearflow.cfg
+        owner: root
+        group: nagios
+        mode: "0640"
+      notify: Validate and restart Nagios
+    - name: Validate Nagios configuration
+      ansible.builtin.command: nagios4 -v /etc/nagios4/nagios.cfg
+      changed_when: false
+    - name: Ensure Nagios is enabled and running
+      ansible.builtin.service:
+        name: nagios4
+        state: started
+        enabled: true
+  handlers:
+    - name: Validate and reload nginx
+      ansible.builtin.command: nginx -t
+      changed_when: false
+      notify: Reload nginx
+    - name: Reload nginx
+      ansible.builtin.service:
+        name: nginx
+        state: reloaded
+    - name: Validate and restart Nagios
+      ansible.builtin.command: nagios4 -v /etc/nagios4/nagios.cfg
+      changed_when: false
+      notify: Restart Nagios
+    - name: Restart Nagios
+      ansible.builtin.service:
+        name: nagios4
+        state: restarted

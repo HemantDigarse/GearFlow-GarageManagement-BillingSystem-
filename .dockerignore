@@ -1,0 +1,10 @@
+.git
+.github
+.presentation-build
+output
+tmp
+**/node_modules
+**/target
+**/dist
+**/.env
+**/*.log

@@ -1,0 +1,94 @@
+define host {
+    use                     generic-host
+    host_name               gearflow-host
+    alias                   GearFlow Docker host
+    address                 127.0.0.1
+    contact_groups          gearflow-admins
+}
+
+define command {
+    command_name            check_mem_usage
+    command_line            /usr/local/lib/nagios/plugins/check_mem
+}
+
+define contact {
+    contact_name                 gearflow-admin
+    alias                        GearFlow Administrator
+    email                        {{ nagios_admin_email }}
+    service_notification_period  24x7
+    host_notification_period     24x7
+    service_notification_options w,u,c,r
+    host_notification_options    d,u,r
+    service_notification_commands notify-service-by-email
+    host_notification_commands   notify-host-by-email
+}
+
+define contactgroup {
+    contactgroup_name       gearflow-admins
+    alias                   GearFlow administrators
+    members                 gearflow-admin
+}
+
+define service {
+    use                     generic-service
+    host_name               gearflow-host
+    service_description     SSH
+    check_command           check_ssh
+    contact_groups          gearflow-admins
+}
+
+define service {
+    use                     generic-service
+    host_name               gearflow-host
+    service_description     CPU Load
+    check_command           check_load!5.0,4.0,3.0!10.0,8.0,6.0
+    contact_groups          gearflow-admins
+}
+
+define service {
+    use                     generic-service
+    host_name               gearflow-host
+    service_description     Root Disk
+    check_command           check_disk!-w 20% -c 10% -p /
+    contact_groups          gearflow-admins
+}
+
+define service {
+    use                     generic-service
+    host_name               gearflow-host
+    service_description     Memory
+    check_command           check_mem_usage
+    contact_groups          gearflow-admins
+}
+
+define service {
+    use                     generic-service
+    host_name               gearflow-host
+    service_description     Docker daemon
+    check_command           check_procs!-C dockerd -c 1:1
+    contact_groups          gearflow-admins
+}
+
+define service {
+    use                     generic-service
+    host_name               gearflow-host
+    service_description     GearFlow web page
+    check_command           check_http!-u /
+    contact_groups          gearflow-admins
+}
+
+define service {
+    use                     generic-service
+    host_name               gearflow-host
+    service_description     GearFlow API health
+    check_command           check_http!-u /actuator/health -s UP
+    contact_groups          gearflow-admins
+}
+
+define service {
+    use                     generic-service
+    host_name               gearflow-host
+    service_description     MySQL container endpoint
+    check_command           check_tcp!3307
+    contact_groups          gearflow-admins
+}

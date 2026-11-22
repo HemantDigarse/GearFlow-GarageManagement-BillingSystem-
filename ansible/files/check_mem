@@ -1,0 +1,20 @@
+#!/usr/bin/env python3
+import sys
+
+try:
+    with open("/proc/meminfo", encoding="ascii") as stream:
+        values = {line.split(":", 1)[0]: int(line.split()[1]) for line in stream if ":" in line}
+    total = values["MemTotal"]
+    available = values.get("MemAvailable", values["MemFree"])
+    used_pct = (total - available) * 100 / total
+    if used_pct >= 95:
+        status, code = "CRITICAL", 2
+    elif used_pct >= 85:
+        status, code = "WARNING", 1
+    else:
+        status, code = "OK", 0
+    print(f"{status} - memory used {used_pct:.1f}% | memory_used={used_pct:.1f}%;85;95;0;100")
+    sys.exit(code)
+except Exception as exc:
+    print(f"UNKNOWN - unable to read memory usage: {exc}")
+    sys.exit(3)
