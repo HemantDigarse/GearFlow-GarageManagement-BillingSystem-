@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # GearFlow DevOps deployment
 
 This repository keeps the GearFlow React/Vite frontend in `gearflow-frontend/` and the Spring Boot API in `gearflow-backend/`. The deployment layer adds container builds, CI/CD, AWS or local infrastructure, Ansible host configuration, and Nagios checks without changing the application routes or database entities.
@@ -118,3 +119,6 @@ curl -fsS http://localhost:8081/actuator/health
 ```
 
 Terraform AWS/provider reference: [Terraform AWS getting started](https://developer.hashicorp.com/terraform/tutorials/aws-get-started). Ansible module reference: [Ansible builtin modules](https://docs.ansible.com/ansible/latest/collections/ansible/builtin/index.html). Nagios checks are built around the [Nagios Core documentation](https://www.nagios.org/documentation/).
+=======
+# GearFlow-GarageManagement-BillingSystem-
+>>>>>>> 0c2be91eedee238c65005f185015ea4809877fe2
