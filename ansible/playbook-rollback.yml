@@ -1,0 +1,65 @@
+# ============================================================
+# GearFlow - Ansible Playbook: Rollback to Previous Version
+# ============================================================
+# Rolls back to the previous Docker image version.
+#
+# Usage:
+#   ansible-playbook -i inventory.ini playbook-rollback.yml \
+#     --extra-vars "@vars.yml" --extra-vars "rollback_tag=abc1234"
+# ============================================================
+
+---
+- name: Rollback GearFlow Deployment
+  hosts: gearflow
+  become: yes
+  become_user: ubuntu
+  vars_files:
+    - vars.yml
+
+  vars:
+    rollback_tag: "{{ rollback_tag | default('previous') }}"
+
+  tasks:
+    - name: Login to ECR
+      shell: >
+        aws ecr get-login-password --region {{ aws_region }} |
+        docker login --username AWS --password-stdin
+        {{ aws_account_id }}.dkr.ecr.{{ aws_region }}.amazonaws.com
+
+    - name: Get current running image tags
+      shell: |
+        docker inspect --format='{{ '{{' }}.Config.Image{{ '}}' }}' gearflow-backend 2>/dev/null || echo "none"
+        docker inspect --format='{{ '{{' }}.Config.Image{{ '}}' }}' gearflow-frontend 2>/dev/null || echo "none"
+      register: current_images
+
+    - name: Display current images
+      debug:
+        msg: "Current images: {{ current_images.stdout_lines }}"
+
+    - name: Pull rollback images
+      command: "docker pull {{ item }}:{{ rollback_tag }}"
+      loop:
+        - "{{ ecr_backend_url }}"
+        - "{{ ecr_frontend_url }}"
+
+    - name: Stop current containers
+      command: docker compose -f {{ app_dir }}/docker-compose.yml down
+      ignore_errors: yes
+
+    - name: Start rollback containers
+      command: docker compose -f {{ app_dir }}/docker-compose.yml up -d
+      environment:
+        IMAGE_TAG: "{{ rollback_tag }}"
+
+    - name: Wait for health check
+      uri:
+        url: "http://localhost:8080/actuator/health"
+        status_code: 200
+      register: health
+      until: health.status == 200
+      retries: 12
+      delay: 10
+
+    - name: Rollback complete
+      debug:
+        msg: "✅ Rolled back to tag: {{ rollback_tag }}"

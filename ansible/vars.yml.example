@@ -1,0 +1,36 @@
+# ============================================================
+# GearFlow Ansible Variables
+# ============================================================
+# Copy to vars.yml and fill in values from terraform output
+# ============================================================
+
+# AWS
+aws_region: "ap-south-1"
+aws_account_id: "YOUR_AWS_ACCOUNT_ID"
+
+# ECR
+ecr_backend_url: "{{ aws_account_id }}.dkr.ecr.{{ aws_region }}.amazonaws.com/gearflow-backend"
+ecr_frontend_url: "{{ aws_account_id }}.dkr.ecr.{{ aws_region }}.amazonaws.com/gearflow-frontend"
+image_tag: "latest"
+
+# Database (RDS)
+rds_endpoint: "YOUR_RDS_ENDPOINT"
+db_name: "gearflow"
+db_username: "gearflow_admin"
+db_password: "YOUR_DB_PASSWORD"
+
+# Application
+jwt_secret: "YOUR_JWT_SECRET_CHANGE_THIS"
+jwt_expiration: "86400000"
+
+# Docker
+app_dir: "/home/ubuntu/gearflow"
+docker_compose_version: "2.24.0"
+
+# Nagios
+nagios_enabled: true
+nagios_admin_email: "admin@yourdomain.com"
+
+# Domain (optional)
+domain_name: ""
+ssl_enabled: false

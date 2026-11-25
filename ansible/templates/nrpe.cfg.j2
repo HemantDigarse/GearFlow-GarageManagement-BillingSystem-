@@ -1,0 +1,36 @@
+# ============================================================
+# Nagios NRPE Configuration (Ansible Template)
+# ============================================================
+
+log_facility=daemon
+server_port=5666
+nrpe_user=nagios
+nrpe_group=nagios
+dont_blame_nrpe=0
+allow_bash_command_substitution=0
+debug=0
+command_timeout=60
+connection_timeout=300
+
+# Allow connections from admin CIDR
+allowed_hosts=127.0.0.1,::1
+
+# ---- Standard Checks ----
+command[check_load]=/usr/lib/nagios/plugins/check_load -r -w .15,.10,.05 -c .30,.25,.20
+command[check_disk]=/usr/lib/nagios/plugins/check_disk -w 20% -c 10% -p /
+command[check_mem]=/usr/lib/nagios/plugins/check_swap -w 20 -c 10
+command[check_procs]=/usr/lib/nagios/plugins/check_procs -w 250 -c 400
+command[check_total_procs]=/usr/lib/nagios/plugins/check_procs -w 150 -c 200
+
+# ---- Docker Checks ----
+command[check_docker_backend]=/usr/local/bin/check_docker_container.sh gearflow-backend
+command[check_docker_frontend]=/usr/local/bin/check_docker_container.sh gearflow-frontend
+
+# ---- Application Health Checks ----
+command[check_gearflow_backend]=/usr/local/bin/check_gearflow_health.sh http://localhost:8080/actuator/health
+command[check_gearflow_frontend]=/usr/local/bin/check_gearflow_health.sh http://localhost:80/
+
+# ---- Service Checks ----
+command[check_docker_service]=/usr/lib/nagios/plugins/check_procs -c 1: -C dockerd
+command[check_http_80]=/usr/lib/nagios/plugins/check_http -H localhost -p 80 -w 5 -c 10
+command[check_http_8080]=/usr/lib/nagios/plugins/check_http -H localhost -p 8080 -u /actuator/health -w 5 -c 10

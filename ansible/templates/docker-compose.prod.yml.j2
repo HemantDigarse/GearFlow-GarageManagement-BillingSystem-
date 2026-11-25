@@ -1,0 +1,57 @@
+# ============================================================
+# GearFlow - Docker Compose (Ansible Template)
+# ============================================================
+
+version: '3.8'
+
+services:
+  gearflow-backend:
+    image: {{ ecr_backend_url }}:${IMAGE_TAG:-latest}
+    container_name: gearflow-backend
+    restart: unless-stopped
+    environment:
+      SPRING_DATASOURCE_URL: "jdbc:mysql://{{ rds_endpoint }}:3306/{{ db_name }}?useSSL=true&requireSSL=true&serverTimezone=UTC"
+      SPRING_DATASOURCE_USERNAME: "{{ db_username }}"
+      SPRING_DATASOURCE_PASSWORD: "{{ db_password }}"
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_JPA_SHOW_SQL: "false"
+      JWT_SECRET: "{{ jwt_secret }}"
+      JWT_EXPIRATION: "{{ jwt_expiration }}"
+      SPRING_PROFILES_ACTIVE: prod
+    ports:
+      - "8080:8080"
+    networks:
+      - gearflow-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  gearflow-frontend:
+    image: {{ ecr_frontend_url }}:${IMAGE_TAG:-latest}
+    container_name: gearflow-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      gearflow-backend:
+        condition: service_healthy
+    networks:
+      - gearflow-network
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+networks:
+  gearflow-network:
+    driver: bridge

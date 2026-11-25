@@ -1,0 +1,244 @@
+# ============================================================
+# GearFlow - Ansible Playbook: Setup EC2 Server
+# ============================================================
+# Installs Docker, Docker Compose, AWS CLI, Nagios NRPE
+# on the EC2 instance created by Terraform
+#
+# Usage:
+#   ansible-playbook -i inventory.ini playbook-setup.yml --extra-vars "@vars.yml"
+# ============================================================
+
+---
+- name: Setup GearFlow EC2 Server
+  hosts: gearflow
+  become: yes
+  vars_files:
+    - vars.yml
+
+  tasks:
+    # ===================== SYSTEM UPDATE ========================
+    - name: Update apt cache and upgrade packages
+      apt:
+        update_cache: yes
+        upgrade: dist
+        cache_valid_time: 3600
+
+    - name: Install essential packages
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg
+          - lsb-release
+          - software-properties-common
+          - unzip
+          - jq
+          - htop
+          - net-tools
+          - python3-pip
+          - mysql-client
+        state: present
+
+    # ===================== DOCKER ========================
+    - name: Add Docker GPG key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    - name: Add Docker repository
+      apt_repository:
+        repo: "deb https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+        state: present
+        filename: docker
+
+    - name: Install Docker Engine
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+        state: present
+        update_cache: yes
+
+    - name: Add ubuntu user to docker group
+      user:
+        name: ubuntu
+        groups: docker
+        append: yes
+
+    - name: Enable and start Docker
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
+
+    # ===================== AWS CLI ========================
+    - name: Check if AWS CLI is installed
+      command: aws --version
+      register: aws_cli_check
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Download AWS CLI v2
+      get_url:
+        url: https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip
+        dest: /tmp/awscliv2.zip
+      when: aws_cli_check.rc != 0
+
+    - name: Unzip AWS CLI
+      unarchive:
+        src: /tmp/awscliv2.zip
+        dest: /tmp/
+        remote_src: yes
+      when: aws_cli_check.rc != 0
+
+    - name: Install AWS CLI
+      command: /tmp/aws/install
+      when: aws_cli_check.rc != 0
+
+    # ===================== APPLICATION DIRECTORY ========================
+    - name: Create application directory
+      file:
+        path: "{{ app_dir }}"
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+        mode: "0755"
+
+    - name: Create logs directory
+      file:
+        path: "{{ app_dir }}/logs"
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+        mode: "0755"
+
+    # ===================== DOCKER COMPOSE FILES ========================
+    - name: Copy docker-compose.prod.yml
+      template:
+        src: templates/docker-compose.prod.yml.j2
+        dest: "{{ app_dir }}/docker-compose.yml"
+        owner: ubuntu
+        group: ubuntu
+        mode: "0644"
+
+    - name: Create .env file
+      template:
+        src: templates/env.j2
+        dest: "{{ app_dir }}/.env"
+        owner: ubuntu
+        group: ubuntu
+        mode: "0600"
+
+    # ===================== NAGIOS NRPE ========================
+    - name: Install Nagios NRPE agent and plugins
+      apt:
+        name:
+          - nagios-nrpe-server
+          - nagios-plugins
+          - monitoring-plugins
+        state: present
+      when: nagios_enabled | default(false)
+
+    - name: Configure NRPE
+      template:
+        src: templates/nrpe.cfg.j2
+        dest: /etc/nagios/nrpe.cfg
+        owner: root
+        group: root
+        mode: "0644"
+      when: nagios_enabled | default(false)
+      notify: restart nrpe
+
+    - name: Copy custom Nagios check scripts
+      copy:
+        src: "files/{{ item }}"
+        dest: "/usr/local/bin/{{ item }}"
+        owner: root
+        group: root
+        mode: "0755"
+      loop:
+        - check_docker_container.sh
+        - check_gearflow_health.sh
+      when: nagios_enabled | default(false)
+
+    - name: Enable and start NRPE
+      systemd:
+        name: nagios-nrpe-server
+        state: started
+        enabled: yes
+      when: nagios_enabled | default(false)
+
+    # ===================== SYSTEM TUNING ========================
+    - name: Set sysctl params for Docker
+      sysctl:
+        name: "{{ item.key }}"
+        value: "{{ item.value }}"
+        sysctl_set: yes
+        reload: yes
+      loop:
+        - { key: "vm.max_map_count", value: "262144" }
+        - { key: "net.core.somaxconn", value: "65535" }
+        - { key: "net.ipv4.ip_forward", value: "1" }
+
+    # ===================== LOG ROTATION ========================
+    - name: Configure Docker log rotation
+      copy:
+        content: |
+          {
+            "log-driver": "json-file",
+            "log-opts": {
+              "max-size": "10m",
+              "max-file": "5"
+            }
+          }
+        dest: /etc/docker/daemon.json
+        owner: root
+        group: root
+        mode: "0644"
+      notify: restart docker
+
+    # ===================== FIREWALL ========================
+    - name: Enable UFW
+      ufw:
+        state: enabled
+        policy: deny
+
+    - name: Allow SSH
+      ufw:
+        rule: allow
+        port: "22"
+        proto: tcp
+
+    - name: Allow HTTP
+      ufw:
+        rule: allow
+        port: "80"
+        proto: tcp
+
+    - name: Allow HTTPS
+      ufw:
+        rule: allow
+        port: "443"
+        proto: tcp
+
+    - name: Allow Nagios NRPE
+      ufw:
+        rule: allow
+        port: "5666"
+        proto: tcp
+      when: nagios_enabled | default(false)
+
+  handlers:
+    - name: restart docker
+      systemd:
+        name: docker
+        state: restarted
+
+    - name: restart nrpe
+      systemd:
+        name: nagios-nrpe-server
+        state: restarted

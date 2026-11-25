@@ -1,17 +1,41 @@
-.env
-.env.*
-!.env.example
-ansible/inventory/hosts.ini
-ansible/group_vars/gearflow/vault.yml
-*.tfstate
-*.tfstate.*
-.terraform/
-terraform.tfvars
-terraform/**/terraform.tfvars
-*.pem
-*.key
-*.log
+# ============================================================
+# GearFlow .gitignore
+# ============================================================
+
+# ----- Backend -----
 gearflow-backend/target/
+gearflow-backend/*.jar
+gearflow-backend/.mvn/
+gearflow-backend/mvnw
+gearflow-backend/mvnw.cmd
+gearflow-backend/logs/
+
+# ----- Frontend -----
 gearflow-frontend/node_modules/
 gearflow-frontend/dist/
-ansible/retry_files/
+gearflow-frontend/.cache/
+
+# ----- IDE -----
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+
+# ----- Environment -----
+.env
+.env.local
+.env.production
+*.pem
+
+# ----- OS -----
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ----- Logs -----
+*.log
+logs/
+
+# ----- Docker -----
+docker-compose.override.yml
